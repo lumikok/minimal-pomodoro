@@ -1,0 +1,67 @@
+:root { font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif; color: #343d36; background: #faf8f4; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; --accent: #53715b; --muted: #7a8077; --line: #e5e7df; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; min-width: 300px; }
+button, input { font: inherit; }
+button { cursor: pointer; border: 0; transition: background-color 120ms, color 120ms; }
+button:disabled { cursor: default; opacity: 0.5; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button:not(:disabled):active { transform: translateY(1px); }
+#app { width: 100%; max-width: 420px; margin: 0 auto; padding: 14px 24px; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; position: sticky; top: 0; background: #faf8f4; z-index: 2; }
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand-dot { width: 7px; height: 7px; background: var(--accent); border-radius: 50%; }
+h1 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.05em; }
+.header-actions { display: flex; gap: 4px; }
+.icon-button { width: 30px; height: 30px; background: transparent; color: var(--muted); border-radius: 8px; padding: 6px; }
+.icon-button svg { width: 18px; height: 18px; }
+.icon-button:hover, .icon-button[aria-pressed="true"], .icon-button[aria-expanded="true"] { background: #e8eee6; color: var(--accent); }
+.phases { display: flex; padding: 4px; gap: 3px; border-radius: 11px; background: #efeee8; }
+.phases button { flex: 1; min-height: 32px; border-radius: 8px; background: transparent; color: var(--muted); font-size: 12px; }
+.phases button[aria-pressed="true"] { background: #fafbf7; color: var(--accent); box-shadow: 0 1px 4px #28351f0a; font-weight: 600; }
+.timer { text-align: center; padding-top: 16px; }
+.eyebrow { color: var(--muted); margin: 0 0 4px; font-size: 11px; letter-spacing: 0.12em; }
+.time { font-size: clamp(52px, 18vw, 72px); line-height: 1.22; font-weight: 300; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; color: #39483c; }
+.progress-track { width: 112px; height: 3px; border-radius: 10px; background: #e5e9df; margin: 11px auto 0; overflow: hidden; }
+.progress-fill { width: 0; height: 100%; background: var(--accent); border-radius: inherit; }
+.message { margin: 13px 0; color: var(--muted); font-size: 11px; min-height: 17px; line-height: 1.6; }
+.presets { display: flex; justify-content: center; gap: 6px; margin-bottom: 14px; }
+.presets button { color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; font-size: 10px; min-height: 28px; }
+.presets button[aria-pressed="true"] { color: var(--accent); background: #eaf0e6; border-color: #d2decd; }
+.presets button:hover { border-color: #a9b9a3; }
+.timer-actions { display: flex; gap: 9px; }
+.primary { background: var(--accent); color: #fff; border-radius: 9px; min-height: 40px; padding: 10px 18px; font-size: 12px; font-weight: 500; }
+.primary:hover:not(:disabled) { background: #43634b; }
+.timer-actions .primary { flex: 1; }
+.secondary { background: #efeee8; color: #747d70; border-radius: 9px; min-height: 40px; padding: 10px 15px; font-size: 12px; }
+.secondary:hover:not(:disabled) { background: #e5e7dd; }
+.text-button { background: transparent; color: var(--accent); font-size: 11px; text-decoration: underline; text-underline-offset: 4px; width: 100%; margin-top: 10px; padding: 4px; }
+.summary { display: flex; justify-content: center; align-items: center; gap: 28px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.summary > div { display: flex; flex-direction: column; gap: 5px; min-width: 70px; }
+.summary-label { font-size: 10px; color: var(--muted); }
+.summary strong { font-weight: 500; font-size: 19px; font-variant-numeric: tabular-nums; }
+.summary small { font-size: 10px; font-weight: normal; color: var(--muted); }
+.summary-divider { width: 1px; height: 26px; background: var(--line); }
+.settings-panel { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 18px; }
+.section-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 13px; }
+h2 { margin: 0; font-size: 13px; font-weight: 600; }
+.section-heading span { color: var(--muted); font-size: 10px; }
+.duration-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.duration-fields label { display: flex; flex-direction: column; gap: 7px; font-size: 11px; color: var(--muted); }
+.duration-fields input { width: 100%; min-width: 0; border: 1px solid #d9ded1; background: #fffdf9; color: #39483c; border-radius: 6px; height: 33px; padding: 5px 7px; font-size: 13px; }
+.sound-option { display: flex; align-items: center; gap: 7px; font-size: 11px; margin-top: 15px; }
+input[type="checkbox"] { accent-color: var(--accent); }
+.settings-note { color: var(--muted); font-size: 10px; line-height: 1.8; }
+.save-button { background: #e6ecdf; color: #43634b; border-radius: 7px; width: 100%; min-height: 34px; font-size: 11px; }
+.save-button:hover { background: #dce5d3; }
+.local-note { text-align: center; color: #8a8f84; font-size: 10px; margin: 15px 0 0; }
+.feedback, .warning { border-radius: 8px; padding: 9px 11px; line-height: 1.7; font-size: 11px; margin: 14px 0 0; overflow-wrap: anywhere; }
+.feedback { color: #45624b; background: #e9efe4; }
+.warning { color: #86551e; background: #f6ebd9; }
+dialog { width: min(300px, calc(100vw - 32px)); border: 1px solid var(--line); background: #faf8f4; color: #343d36; border-radius: 13px; padding: 23px; box-shadow: 0 12px 50px #21311d26; }
+dialog::backdrop { background: #25351f40; }
+dialog p { font-size: 12px; color: var(--muted); line-height: 1.9; margin: 13px 0 20px; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.dialog-actions .primary, .dialog-actions .secondary { font-size: 11px; min-height: 34px; padding: 8px 13px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+@media (max-height: 420px) { #app { padding-top: 10px; } .header { margin-bottom: 12px; } .timer { padding-top: 14px; } .summary { margin-top: 15px; } }

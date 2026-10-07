@@ -1,0 +1,22 @@
+[package]
+name = "minimal-pomodoro"
+version = "0.1.1"
+description = "An offline, minimal study timer"
+edition = "2021"
+rust-version = "1.90"
+
+[lib]
+name = "minimal_pomodoro_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-winrt-notification = "0.8"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+
