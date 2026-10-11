@@ -216,6 +216,8 @@ pub fn run() {
             Ok(())
         }).on_window_event(|window, event| {
             if let tauri::WindowEvent::Moved(position) = event {
+                // Ignore queued intermediate moves from resize/monitor changes.
+                if window.outer_position().is_ok_and(|current| current != *position) { return; }
                 if let Some(desktop) = window.app_handle().try_state::<Desktop>() {
                     let point = Position { x: position.x, y: position.y };
                     if let Ok(mut ignored) = desktop.ignored_position.lock() {

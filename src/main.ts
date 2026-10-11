@@ -110,7 +110,7 @@ el("quiet").addEventListener("click", () => action(() => command("silence_chime"
 el("pin").addEventListener("click", () => action(() => command("set_always_on_top", { enabled: !state?.settings.alwaysOnTop })));
 el("reset").addEventListener("click", () => action(async () => { if (started() && !await confirmDiscard("重新开始这一段？")) return; await command("reset_timer", { confirmed: true }); }));
 for (const button of document.querySelectorAll<HTMLButtonElement>("[data-phase]")) button.addEventListener("click", () => action(async () => {
-  if (button.dataset.phase === state?.phase && state.status !== "completed") return;
+  if (state && button.dataset.phase === state.phase && state.status !== "completed") return;
   if (started() && !await confirmDiscard("切换阶段并放弃这一段？")) return;
   await command("switch_phase", { phase: button.dataset.phase, confirmed: true });
 }));
