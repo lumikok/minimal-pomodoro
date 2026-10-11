@@ -45,7 +45,10 @@ try {
         'install' { Invoke-ProjectCommand 'npm.cmd' @('install', '--no-audit', '--no-fund') }
         'dev' { Invoke-ProjectCommand 'npm.cmd' @('run', 'tauri', '--', 'dev') }
         'check' { Invoke-ProjectCommand 'npm.cmd' @('run', 'build') }
-        'test' { Invoke-ProjectCommand 'cargo' @('test', '--manifest-path', 'src-tauri/Cargo.toml') }
+        'test' {
+            Invoke-ProjectCommand 'node' @('--experimental-strip-types', '--test', 'tests/format.test.mjs')
+            Invoke-ProjectCommand 'cargo' @('test', '--locked', '--manifest-path', 'src-tauri/Cargo.toml')
+        }
         'build' {
             Invoke-ProjectCommand 'npm.cmd' @('run', 'tauri', '--', 'build', '--bundles', 'nsis')
             $taskVersion = (Get-Content -LiteralPath (Join-Path $taskRoot 'package.json') -Raw | ConvertFrom-Json).version
