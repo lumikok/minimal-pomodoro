@@ -19,6 +19,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --no-audit --no-fund --cache .cache/npm
       - name: Test timer and storage
+        run: node --experimental-strip-types --test tests/format.test.mjs
+      - name: Test Rust timer and storage
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/.cache/target
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml

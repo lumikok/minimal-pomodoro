@@ -8,8 +8,13 @@ unsafe extern "system" {
 #[cfg(windows)]
 #[link(name = "user32")]
 unsafe extern "system" {
-    fn MessageBeep(kind: u32) -> i32;
+    fn ShowWindow(hwnd: isize, command: i32) -> i32;
+    fn SetWindowPos(hwnd: isize, after: isize, x: i32, y: i32, width: i32, height: i32, flags: u32) -> i32;
 }
+
+#[cfg(windows)]
+#[link(name = "winmm")]
+unsafe extern "system" { fn PlaySoundW(sound: *const u8, module: isize, flags: u32) -> i32; }
 
 pub fn awake_ms() -> u64 {
     #[cfg(windows)]
@@ -33,12 +38,27 @@ pub fn local_date() -> String {
     chrono::Local::now().format("%Y-%m-%d").to_string()
 }
 
-pub fn short_beep() {
+pub fn start_chime() {
     #[cfg(windows)]
     unsafe {
-        // Use the user's short system sound; no media downloads or background player.
-        MessageBeep(0x40);
+        // Embedded WAV stays alive for asynchronous playback; no external player/download.
+        PlaySoundW(include_bytes!("../sounds/chime.wav").as_ptr(), 0, 0x1 | 0x4 | 0x8 | 0x2);
     }
+}
+
+pub fn stop_chime() {
+    #[cfg(windows)]
+    unsafe { PlaySoundW(std::ptr::null(), 0, 0); }
+}
+
+pub fn show_without_focus(window: &tauri::WebviewWindow) {
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() { unsafe {
+        ShowWindow(hwnd.0 as isize, 4); // SW_SHOWNOACTIVATE
+        SetWindowPos(hwnd.0 as isize, -1, 0, 0, 0, 0, 0x1 | 0x2 | 0x10 | 0x40);
+    } }
+    #[cfg(not(windows))]
+    { let _ = window.show(); }
 }
 
 pub fn atomic_replace(source: &std::path::Path, destination: &std::path::Path) -> std::io::Result<()> {

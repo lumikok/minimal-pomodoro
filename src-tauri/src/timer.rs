@@ -44,7 +44,7 @@ impl Default for Settings {
             short_break_minutes: 5,
             long_break_minutes: 15,
             sound_enabled: true,
-            always_on_top: false,
+            always_on_top: true,
         }
     }
 }
@@ -90,12 +90,18 @@ pub struct Record {
     pub today: Today,
     pub cycle_count: u8,
     pub tray_hint_seen: bool,
+    #[serde(default)]
+    pub lifetime: Lifetime,
+    #[serde(default)]
+    pub window: WindowPreferences,
+    #[serde(default)]
+    pub reminder_pending: bool,
 }
 
 impl Record {
     pub fn validate(&self) -> Result<(), String> {
         self.settings.validate()?;
-        if self.version != 1 {
+        if self.version != 1 && self.version != 2 {
             return Err("不支持的数据版本。".into());
         }
         if !(60_000..=10_800_000).contains(&self.total_ms)
@@ -111,9 +117,54 @@ impl Record {
         {
             return Err("计时记录包含无效字段。".into());
         }
+        if self.version == 2 {
+            Counters { completed_count: self.lifetime.completed_count, focus_minutes: self.lifetime.focus_minutes }.validate()?;
+            self.lifetime.history.validate()?;
+            if chrono::NaiveDate::parse_from_str(&self.lifetime.since, "%Y-%m-%d").is_err()
+                || self.lifetime.completed_count < u64::from(self.today.completed_count)
+                || self.lifetime.focus_minutes < u64::from(self.today.focus_minutes)
+                || !(40..=100).contains(&self.window.opacity)
+                || self.window.position.is_some_and(|p| p.x.unsigned_abs() > 1_000_000 || p.y.unsigned_abs() > 1_000_000)
+                || (self.reminder_pending && self.status != Status::Completed) { return Err("累计或浮窗记录无效。".into()); }
+        }
+        Ok(())
+    }
+    pub fn migrate(&mut self) {
+        if self.version == 1 {
+            self.lifetime = Lifetime { since: self.today.date.clone(), completed_count: u64::from(self.today.completed_count),
+                focus_minutes: u64::from(self.today.focus_minutes), history: Counters::default() };
+            self.window = WindowPreferences::default();
+            self.settings.always_on_top = true;
+            self.reminder_pending = false;
+            self.version = 2;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Counters { pub completed_count: u64, pub focus_minutes: u64 }
+impl Counters {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.completed_count > 1_000_000_000 || self.focus_minutes < self.completed_count
+            || self.focus_minutes > self.completed_count * 180 { return Err("次数与专注分钟不一致（每次 1–180 分钟）。".into()); }
         Ok(())
     }
 }
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Lifetime {
+    pub since: String,
+    pub completed_count: u64,
+    pub focus_minutes: u64,
+    pub history: Counters,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Position { pub x: i32, pub y: i32 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowPreferences { pub opacity: u8, pub position: Option<Position> }
+impl Default for WindowPreferences { fn default() -> Self { Self { opacity: 80, position: None } } }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -129,6 +180,11 @@ pub struct Snapshot {
     pub tray_hint_seen: bool,
     pub warning: Option<String>,
     pub revision: u64,
+    pub lifetime: Lifetime,
+    pub window: WindowPreferences,
+    pub reminder_pending: bool,
+    pub expanded: bool,
+    pub ringing: bool,
 }
 
 pub struct Timer {
@@ -144,7 +200,7 @@ impl Timer {
         let total_ms = settings.duration_ms(Phase::Focus);
         Self {
             record: Record {
-                version: 1,
+                version: 2,
                 settings,
                 phase: Phase::Focus,
                 status: Status::Idle,
@@ -153,6 +209,9 @@ impl Timer {
                 today: Today { date: date.into(), completed_count: 0, focus_minutes: 0 },
                 cycle_count: 0,
                 tray_hint_seen: false,
+                lifetime: Lifetime { since: date.into(), ..Lifetime::default() },
+                window: WindowPreferences::default(),
+                reminder_pending: false,
             },
             warning: None,
             anchor_ms: None,
@@ -162,6 +221,7 @@ impl Timer {
 
     pub fn restore(mut record: Record, date: &str) -> Result<Self, String> {
         record.validate()?;
+        record.migrate();
         if record.status == Status::Running {
             record.status = Status::Paused;
         }
@@ -184,6 +244,11 @@ impl Timer {
             tray_hint_seen: self.record.tray_hint_seen,
             warning: self.warning.clone(),
             revision: self.revision,
+            lifetime: self.record.lifetime.clone(),
+            window: self.record.window.clone(),
+            reminder_pending: self.record.reminder_pending,
+            expanded: false,
+            ringing: false,
         }
     }
 
@@ -214,11 +279,14 @@ impl Timer {
             return None;
         }
         self.record.status = Status::Completed;
+        self.record.reminder_pending = true;
         self.anchor_ms = None;
         if self.record.phase == Phase::Focus {
             self.record.today.completed_count = self.record.today.completed_count.saturating_add(1);
             self.record.today.focus_minutes = self.record.today.focus_minutes.saturating_add((self.record.total_ms / 60_000) as u32);
             self.record.cycle_count = (self.record.cycle_count + 1) % 4;
+            self.record.lifetime.completed_count += 1;
+            self.record.lifetime.focus_minutes += self.record.total_ms / 60_000;
         }
         Some(self.record.phase)
     }
@@ -274,7 +342,14 @@ impl Timer {
         self.record.status = Status::Idle;
         self.record.total_ms = self.record.settings.duration_ms(phase);
         self.record.remaining_ms = self.record.total_ms;
+        self.record.reminder_pending = false;
         self.anchor_ms = None;
+    }
+
+    pub fn set_history(&mut self, history: Counters) -> Result<(), String> {
+        history.validate()?;
+        self.record.lifetime.history = history;
+        Ok(())
     }
 
     pub fn save_settings(&mut self, settings: Settings) -> Result<(), String> {
@@ -432,5 +507,59 @@ mod tests {
         let first = timer.snapshot(); let second = timer.snapshot();
         assert_eq!(first.remaining_seconds, 60);
         assert!(second.revision > first.revision);
+    }
+
+    #[test]
+    fn lifetime_survives_midnight_and_restart_without_duplicate_completion() {
+        let mut timer = short_timer(); timer.start(0).unwrap(); timer.tick(60_000, DAY);
+        timer.tick(80_000, "2026-10-08");
+        assert_eq!(timer.record.today.completed_count, 0);
+        assert_eq!(timer.record.lifetime.completed_count, 1);
+        assert_eq!(timer.record.lifetime.focus_minutes, 1);
+        let mut restored = Timer::restore(timer.record, "2026-10-08").unwrap();
+        assert!(restored.record.reminder_pending);
+        restored.tick(100_000, "2026-10-08");
+        assert_eq!(restored.record.lifetime.completed_count, 1);
+    }
+    #[test]
+    fn history_replaces_offset_without_changing_today_or_clock() {
+        let mut timer = short_timer(); timer.start(0).unwrap(); timer.tick(10_000, DAY);
+        for _ in 0..2 { timer.set_history(Counters { completed_count: 3, focus_minutes: 75 }).unwrap(); }
+        assert_eq!(timer.record.lifetime.history.completed_count, 3);
+        assert_eq!(timer.record.lifetime.completed_count, 0);
+        assert_eq!(timer.record.today.completed_count, 0);
+        assert_eq!(timer.record.remaining_ms, 50_000);
+        assert!(timer.set_history(Counters { completed_count: 0, focus_minutes: 1 }).is_err());
+        assert_eq!(timer.record.lifetime.history.focus_minutes, 75);
+    }
+    #[test]
+    fn legacy_migration_keeps_retained_day_before_rollover() {
+        let mut record = short_timer().record; record.version = 1;
+        record.today.completed_count = 2; record.today.focus_minutes = 50;
+        record.settings.sound_enabled = false;
+        let timer = Timer::restore(record, "2026-10-08").unwrap();
+        assert_eq!(timer.record.version, 2);
+        assert_eq!(timer.record.lifetime.completed_count, 2);
+        assert_eq!(timer.record.lifetime.focus_minutes, 50);
+        assert_eq!(timer.record.lifetime.since, DAY);
+        assert_eq!(timer.record.today.completed_count, 0);
+        assert!(!timer.record.settings.sound_enabled);
+        assert!(timer.record.settings.always_on_top);
+    }
+    #[test]
+    fn dismiss_and_next_segment_do_not_count_or_auto_start() {
+        let mut timer = short_timer(); timer.start(0).unwrap(); timer.tick(60_000, DAY);
+        timer.record.reminder_pending = false; timer.tick(70_000, DAY);
+        assert_eq!(timer.record.status, Status::Completed);
+        assert_eq!(timer.record.lifetime.completed_count, 1);
+        timer.start(80_000).unwrap();
+        assert!(!timer.record.reminder_pending);
+        assert_eq!(timer.record.phase, Phase::ShortBreak);
+    }
+    #[test]
+    fn malformed_v2_totals_and_window_preferences_are_rejected() {
+        let mut record = short_timer().record; record.window.opacity = 0;
+        assert!(record.validate().is_err()); record.window.opacity = 80;
+        record.lifetime.focus_minutes = 25; assert!(record.validate().is_err());
     }
 }

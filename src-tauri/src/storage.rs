@@ -1,13 +1,14 @@
 use crate::platform::atomic_replace;
 use crate::timer::{Record, Timer};
-use std::{fs, io::Write, path::PathBuf};
+use std::{fs, io::Write, path::PathBuf, sync::atomic::{AtomicBool, Ordering}};
 
 pub struct Storage {
     directory: PathBuf,
+    writable: AtomicBool,
 }
 
 impl Storage {
-    pub fn new(directory: PathBuf) -> Self { Self { directory } }
+    pub fn new(directory: PathBuf) -> Self { Self { directory, writable: AtomicBool::new(true) } }
 
     pub fn load(&self, date: &str) -> Timer {
         let path = self.directory.join("state.json");
@@ -15,7 +16,19 @@ impl Storage {
         let loaded = fs::read(&path)
             .map_err(|error| error.to_string())
             .and_then(|bytes| serde_json::from_slice::<Record>(&bytes).map_err(|error| error.to_string()))
-            .and_then(|record| Timer::restore(record, date));
+            .and_then(|record: Record| {
+                record.validate()?;
+                if record.version == 1 {
+                    let backup = self.directory.join(format!("state.pre-v0.2-{}.json", chrono::Local::now().format("%Y%m%d-%H%M%S-%f")));
+                    if let Err(error) = fs::copy(&path, &backup) {
+                        self.writable.store(false, Ordering::SeqCst);
+                        return Timer::restore(record, date).map(|mut timer| {
+                            timer.warning = Some(format!("升级备份失败，原文件未覆盖；当前改动不能保存：{error}")); timer
+                        });
+                    }
+                }
+                Timer::restore(record, date)
+            });
         match loaded {
             Ok(timer) => timer,
             Err(error) => {
@@ -32,6 +45,7 @@ impl Storage {
     }
 
     pub fn save(&self, record: &Record) -> Result<(), String> {
+        if !self.writable.load(Ordering::SeqCst) { return Err("升级备份未成功，已停止覆盖原记录。".into()); }
         fs::create_dir_all(&self.directory).map_err(|error| format!("无法创建数据目录：{error}"))?;
         let path = self.directory.join("state.json");
         // Preserve an unreadable original if recovery could not rename it.
@@ -93,5 +107,20 @@ mod tests {
         let backup = fs::read_dir(&directory.0).unwrap().next().unwrap().unwrap();
         assert_eq!(fs::read(backup.path()).unwrap(), b"{broken");
         storage.save(&timer.record).unwrap();
+    }
+    #[test]
+    fn migration_backup_is_exact_and_totals_persist_once() {
+        let directory = TestDirectory::new(); fs::create_dir_all(&directory.0).unwrap();
+        let mut record = Timer::new("2026-10-07").record; record.version = 1;
+        record.today.completed_count = 2; record.today.focus_minutes = 50;
+        let mut json = serde_json::to_value(record).unwrap();
+        for key in ["lifetime", "window", "reminderPending"] { json.as_object_mut().unwrap().remove(key); }
+        let bytes = serde_json::to_vec(&json).unwrap(); fs::write(directory.0.join("state.json"), &bytes).unwrap();
+        let storage = Storage::new(directory.0.clone()); let timer = storage.load("2026-10-08");
+        let backup = fs::read_dir(&directory.0).unwrap().find_map(|e| { let e = e.unwrap(); e.file_name().to_string_lossy().starts_with("state.pre-v0.2").then_some(e.path()) }).unwrap();
+        assert_eq!(fs::read(backup).unwrap(), bytes);
+        storage.save(&timer.record).unwrap(); let again = storage.load("2026-10-09");
+        assert_eq!(again.record.lifetime.completed_count, 2); assert_eq!(again.record.today.completed_count, 0);
+        assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 2);
     }
 }
