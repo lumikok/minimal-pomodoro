@@ -78,7 +78,7 @@ fn publish(app: &AppHandle, snapshot: &Snapshot) {
     let text = match snapshot.status { Status::Running => "暂停", Status::Paused => "继续", _ => "开始下一段" };
     if let Ok(mut previous) = desktop.last_menu_text.lock() {
         if previous.as_str() != text { let _ = desktop.toggle.set_text(text); *previous = text.into(); }
-    }
+    };
 }
 
 fn dispatch<F>(app: &AppHandle, persist: bool, operation: F) -> Result<Snapshot, String>
@@ -227,7 +227,7 @@ pub fn run() {
                         if core.timer.record.window.position != Some(point) {
                             core.timer.record.window.position = Some(point); core.position_dirty = true; core.position_changed_at = awake_ms();
                         }
-                    }
+                    };
                 }
             }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
