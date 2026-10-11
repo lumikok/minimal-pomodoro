@@ -169,7 +169,7 @@ pub fn run() {
             switch_phase, save_settings, set_always_on_top, set_expanded, acknowledge_completion, silence_chime, save_history, save_opacity, hide_window])
         .setup(|app| {
             let mut builder = WebviewWindowBuilder::from_config(app, &app.config().app.windows[0])?;
-            let directory = if cfg!(debug_assertions) {
+            let directory = if cfg!(debug_assertions) || cfg!(feature = "acceptance") {
                 let path = std::env::var_os("POMODORO_DEV_DATA_DIR").map(std::path::PathBuf::from)
                     .unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.data/dev"));
                 std::fs::create_dir_all(&path)?; builder = builder.data_directory(path.join("webview")); path

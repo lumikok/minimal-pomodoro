@@ -5,6 +5,10 @@ description = "An offline, minimal study timer"
 edition = "2021"
 rust-version = "1.90"
 
+[features]
+default = []
+acceptance = []
+
 [lib]
 name = "minimal_pomodoro_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]

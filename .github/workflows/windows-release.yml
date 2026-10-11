@@ -16,9 +16,13 @@ jobs:
         with:
           node-version: '22'
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> ../.cache/target'
+          cache-on-failure: true
       - name: Install frontend dependencies
         run: npm ci --no-audit --no-fund --cache .cache/npm
-      - name: Test timer and storage
+      - name: Test time display
         run: node --experimental-strip-types --test tests/format.test.mjs
       - name: Test Rust timer and storage
         env:
@@ -38,6 +42,12 @@ jobs:
           Copy-Item -LiteralPath '.cache/target/release/minimal-pomodoro.exe' -Destination release
           $hash = (Get-FileHash -Algorithm SHA256 "release/$name").Hash.ToLowerInvariant()
           "$hash  $name" | Set-Content release/SHA256SUMS.txt -Encoding utf8NoBOM
+      - name: Build isolated desktop acceptance app
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/.cache/target
+        run: |
+          npm run tauri -- build --no-bundle --features acceptance --config tests/acceptance-config.json
+          Copy-Item -LiteralPath '.cache/target/release/minimal-pomodoro.exe' -Destination release/pomodoro-acceptance.exe
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x64
